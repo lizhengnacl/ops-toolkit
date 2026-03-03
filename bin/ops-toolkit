@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+#
+# 描述: ops-toolkit 主入口
+# 作者: ops-toolkit
+# 日期: 2026-03-03
+# 用法: ops-toolkit <command> [options]
+# 命令: init|list|version|help|uninstall
+#
+
+set -euo pipefail
+IFS=$'\n\t'
+
+# ============================================================================
+# 常量定义
+# ============================================================================
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly LIB_DIR="${SCRIPT_DIR}/../lib"
+
+# ============================================================================
+# 主函数
+# ============================================================================
+
+main() {
+  local command="${1:-help}"
+
+  case "${command}" in
+    init)
+      if [[ -f "${LIB_DIR}/init.sh" ]]; then
+        source "${LIB_DIR}/init.sh"
+        cmd_init "$@"
+      else
+        echo "Error: init command not implemented yet"
+        exit 1
+      fi
+      ;;
+    list)
+      if [[ -f "${LIB_DIR}/list.sh" ]]; then
+        source "${LIB_DIR}/list.sh"
+        cmd_list "$@"
+      else
+        echo "Error: list command not implemented yet"
+        exit 1
+      fi
+      ;;
+    version)
+      source "${LIB_DIR}/version.sh"
+      version_command
+      ;;
+    help)
+      source "${LIB_DIR}/help.sh"
+      help_command
+      ;;
+    uninstall)
+      if [[ -f "${LIB_DIR}/uninstall.sh" ]]; then
+        source "${LIB_DIR}/uninstall.sh"
+        cmd_uninstall "$@"
+      else
+        echo "Error: uninstall command not implemented yet"
+        exit 1
+      fi
+      ;;
+    *)
+      echo "Error: Unknown command: ${command}"
+      echo
+      source "${LIB_DIR}/help.sh"
+      help_command
+      exit 1
+      ;;
+  esac
+}
+
+# ============================================================================
+# 入口
+# ============================================================================
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
+fi

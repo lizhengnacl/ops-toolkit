@@ -1,0 +1,47 @@
+" ops-toolkit vim 配置
+set nocompatible
+filetype off
+
+set rtp+=~/.vim/bundle/Vundle.vim
+call vundle#begin()
+
+Plugin 'VundleVim/Vundle.vim'
+Plugin 'tpope/vim-sensible'
+Plugin 'scrooloose/nerdtree'
+Plugin 'vim-airline/vim-airline'
+Plugin 'vim-airline/vim-airline-themes'
+
+call vundle#end()
+filetype plugin indent on
+
+set number
+set relativenumber
+set autoindent
+set smartindent
+set tabstop=4
+set shiftwidth=4
+set expandtab
+set smarttab
+set incsearch
+set hlsearch
+set ignorecase
+set smartcase
+set wrap
+set linebreak
+set showbreak=+++
+set textwidth=100
+set showmatch
+set visualbell
+set history=1000
+set undolevels=1000
+set backspace=indent,eol,start
+set noswapfile
+set nobackup
+set nowritebackup
+set clipboard=unnamedplus
+
+syntax enable
+set background=dark
+colorscheme desert
+
+nnoremap <C-n> :NERDTreeToggle<CR>
