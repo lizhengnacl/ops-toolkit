@@ -29,3 +29,5 @@ Thumbs.db
 # Testing
 test-results/
 coverage/
+
+.claude/settings.local.json
