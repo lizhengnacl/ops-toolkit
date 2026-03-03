@@ -70,7 +70,7 @@ main() {
   print_success "目录创建完成"
   
   print_info "复制文件..."
-  cp -r "${SCRIPT_DIR}/lib" "${INSTALL_DIR}/"
+  cp -r "${SCRIPT_DIR}/lib/"* "${INSTALL_DIR}/"
   cp -r "${SCRIPT_DIR}/components" "${INSTALL_DIR}/"
   cp -r "${SCRIPT_DIR}/configs" "${INSTALL_DIR}/"
   cp "${SCRIPT_DIR}/bin/ops-toolkit" "${BIN_DIR}/"

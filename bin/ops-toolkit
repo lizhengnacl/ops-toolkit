@@ -15,7 +15,15 @@ IFS=$'\n\t'
 # ============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly LIB_DIR="${SCRIPT_DIR}/../lib"
+
+# 检测是在开发环境还是已安装环境
+if [[ -f "${SCRIPT_DIR}/../lib/help.sh" ]]; then
+  # 开发环境：在项目目录中
+  readonly LIB_DIR="${SCRIPT_DIR}/../lib"
+else
+  # 已安装环境：在 ~/.local/lib/ops-toolkit
+  readonly LIB_DIR="${HOME}/.local/lib/ops-toolkit"
+fi
 
 # ============================================================================
 # 主函数
