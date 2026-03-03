@@ -70,13 +70,37 @@ ask_input() {
   local default="${2:-}"
   local input
 
+  # 直接输出到 stderr，确保不被捕获
   if [[ -n "${default}" ]]; then
-    read -r -p "${prompt} [${default}]: " input
+    printf "%s [%s]: " "${prompt}" "${default}" >&2
+  else
+    printf "%s: " "${prompt}" >&2
+  fi
+  
+  # 检测是否是交互式终端
+  if [[ -t 0 ]]; then
+    # 交互式终端：正常读取
+    read -r input
     input="${input:-${default}}"
   else
-    read -r -p "${prompt}: " input
+    # 非交互式环境
+    if [[ -n "${default}" ]]; then
+      # 有默认值：直接使用
+      input="${default}"
+      echo >&2
+      echo "ℹ️ 检测到非交互式环境，使用默认值: ${input}" >&2
+    else
+      # 没有默认值：提示用户需要在真实终端运行
+      echo >&2
+      echo >&2
+      echo "⚠️ 检测到非交互式终端环境" >&2
+      echo "ℹ️ 请在真实的终端中运行此脚本" >&2
+      echo "ℹ️ 或者先手动配置 git 用户名和邮箱" >&2
+      exit 1
+    fi
   fi
 
+  # 只把最终结果输出到 stdout
   echo "${input}"
 }
 
@@ -96,55 +120,76 @@ ask_confirm() {
     display_default="y/N"
   fi
 
-  while true; do
-    read -r -p "${prompt} [${display_default}]: " input
+  # 直接输出到 stderr
+  printf "%s [%s]: " "${prompt}" "${display_default}" >&2
+  
+  if [[ -t 0 ]]; then
+    # 交互式终端：正常读取
+    read -r input
     input="${input:-${default}}"
-    case "${input}" in
-      [Yy]*)
-        return 0
-        ;;
-      [Nn]*)
-        return 1
-        ;;
-      *)
-        echo "请输入 y 或 n"
-        ;;
-    esac
-  done
+  else
+    # 非交互式环境：直接使用默认值
+    input="${default}"
+    echo >&2
+    echo "ℹ️ 检测到非交互式环境，使用默认值: ${input}" >&2
+  fi
+  
+  case "${input}" in
+    [Yy]*)
+      return 0
+      ;;
+    [Nn]*)
+      return 1
+      ;;
+    *)
+      echo "请输入 y 或 n" >&2
+      ;;
+  esac
 }
 
 ask_choice() {
   local prompt="$1"
   shift
-  local options=("$@")
-  local default="${options[-1]}"
-  unset "options[-1]"
+  local all_args=("$@")
+  local num_args=${#all_args[@]}
+  local default="${all_args[$((num_args - 1))]}"
+  local options=("${all_args[@]:0:$((num_args - 1))}")
   local input
 
-  echo "${prompt}"
+  # 输出到 stderr
+  echo "${prompt}" >&2
   for option in "${options[@]}"; do
     IFS='|' read -r num name desc <<<"${option}"
     if [[ -n "${desc}" ]]; then
-      echo "  ${num}) ${name} - ${desc}"
+      echo "  ${num}) ${name} - ${desc}" >&2
     else
-      echo "  ${num}) ${name}"
+      echo "  ${num}) ${name}" >&2
     fi
   done
 
-  while true; do
-    read -r -p "请输入选项 [${default}]: " input
+  # 输出到 stderr
+  printf "请输入选项 [%s]: " "${default}" >&2
+  
+  if [[ -t 0 ]]; then
+    # 交互式终端：正常读取
+    read -r input
     input="${input:-${default}}"
-
-    for option in "${options[@]}"; do
-      IFS='|' read -r num name desc <<<"${option}"
-      if [[ "${input}" == "${num}" ]]; then
-        echo "${num}"
-        return 0
-      fi
-    done
-
-    echo "无效选项，请重新输入"
+  else
+    # 非交互式环境：直接使用默认值
+    input="${default}"
+    echo >&2
+    echo "ℹ️ 检测到非交互式环境，使用默认值: ${input}" >&2
+  fi
+  
+  for option in "${options[@]}"; do
+    IFS='|' read -r num name desc <<<"${option}"
+    if [[ "${input}" == "${num}" ]]; then
+      echo "${num}"
+      return 0
+    fi
   done
+
+  echo "无效选项，请重新输入" >&2
 }
 
 check_dependencies() {
@@ -468,7 +513,7 @@ configure_extra_accounts() {
   fi
 
   while true; do
-    local name email dir
+    local name email mode dir remote_pattern
 
     name=$(ask_input "请输入账户名称（例如：工作）")
     email=$(ask_input "请输入 Git 邮箱")
@@ -477,10 +522,20 @@ configure_extra_accounts() {
       email=$(ask_input "请输入 Git 邮箱")
     done
 
-    dir=$(ask_input "请输入关联的工作目录（例如：~/work）")
+    echo "请选择账户切换方式:"
+    echo "  1) 基于目录 - 在指定目录下自动使用此账户"
+    echo "  2) 基于 Remote - 根据 Git remote 地址自动使用此账户"
+    mode=$(ask_choice "请选择切换方式" "1|基于目录" "2|基于 Remote" "1")
 
-    EXTRA_ACCOUNTS+=("${name},${email},${dir}")
-    configure_single_extra_account "${name}" "${email}" "${dir}"
+    if [[ "${mode}" == "1" ]]; then
+      dir=$(ask_input "请输入关联的工作目录（例如：~/work）")
+      EXTRA_ACCOUNTS+=("${name},${email},dir,${dir}")
+      configure_single_extra_account "${name}" "${email}" "dir" "${dir}"
+    else
+      remote_pattern=$(ask_input "请输入 Git remote 匹配模式（例如：github.com/company 或 git@gitlab.com:team）")
+      EXTRA_ACCOUNTS+=("${name},${email},remote,${remote_pattern}")
+      configure_single_extra_account "${name}" "${email}" "remote" "${remote_pattern}"
+    fi
 
     SUMMARY_EXTRA_ACCOUNTS_COUNT=$((${SUMMARY_EXTRA_ACCOUNTS_COUNT} + 1))
 
@@ -495,7 +550,8 @@ configure_extra_accounts() {
 configure_single_extra_account() {
   local name="$1"
   local email="$2"
-  local dir="$3"
+  local mode="$3"
+  local value="$4"
 
   local config_path="${HOME}/.gitconfig-${name}"
 
@@ -505,12 +561,15 @@ configure_single_extra_account() {
     email = ${email}
 EOF
 
-  local abs_dir
-  abs_dir=$(eval echo "${dir}")
-
-  git config --global --add "includeIf.gitdir:${abs_dir}/.path" "${config_path}"
-
-  print_success "账户 '${name}' 已配置，关联目录: ${dir}"
+  if [[ "${mode}" == "dir" ]]; then
+    local abs_dir
+    abs_dir=$(eval echo "${value}")
+    git config --global --add "includeIf.gitdir:${abs_dir}/.path" "${config_path}"
+    print_success "账户 '${name}' 已配置，关联目录: ${value}"
+  else
+    git config --global --add "includeIf.hasconfig:remote.*.url:${value}.path" "${config_path}"
+    print_success "账户 '${name}' 已配置，匹配 Remote: ${value}"
+  fi
 }
 
 verify_configuration() {
@@ -598,6 +657,14 @@ print_summary() {
 
   if [[ "${SUMMARY_EXTRA_ACCOUNTS_COUNT}" -gt 0 ]]; then
     echo "  • 额外账户: ${SUMMARY_EXTRA_ACCOUNTS_COUNT} 个"
+    for account in "${EXTRA_ACCOUNTS[@]}"; do
+      IFS=',' read -r name email mode value <<<"${account}"
+      if [[ "${mode}" == "dir" ]]; then
+        echo "    - ${name} (目录: ${value})"
+      else
+        echo "    - ${name} (Remote: ${value})"
+      fi
+    done
   fi
 
   echo ""
@@ -609,8 +676,12 @@ print_summary() {
 
   if [[ "${SUMMARY_EXTRA_ACCOUNTS_COUNT}" -gt 0 ]]; then
     local first_account
-    IFS=',' read -r name email dir <<<"${EXTRA_ACCOUNTS[0]}"
-    echo "  • 在 ${dir} 目录下会自动使用 ${name} 账户"
+    IFS=',' read -r name email mode value <<<"${EXTRA_ACCOUNTS[0]}"
+    if [[ "${mode}" == "dir" ]]; then
+      echo "  • 在 ${value} 目录下会自动使用 ${name} 账户"
+    else
+      echo "  • Remote 匹配 ${value} 时会自动使用 ${name} 账户"
+    fi
   fi
 
   echo "  • 使用 --export 可以导出配置备份"
@@ -649,6 +720,20 @@ Git 一键初始化工具 v${VERSION}
 
   # 跳过 SSH Key 配置
   ${SCRIPT_NAME} --no-ssh
+
+远程下载执行:
+  # 直接下载并执行（推荐在真实终端中运行）
+  bash -c "\$(curl -fsSL https://raw.githubusercontent.com/lizhengnacl/ops-toolkit/main/scripts/git-init.sh)"
+
+  # 先下载再执行（更安全）
+  curl -fsSL https://raw.githubusercontent.com/lizhengnacl/ops-toolkit/main/scripts/git-init.sh -o /tmp/git-init.sh
+  chmod +x /tmp/git-init.sh
+  /tmp/git-init.sh
+
+  # 克隆完整仓库
+  git clone https://github.com/lizhengnacl/ops-toolkit.git
+  cd ops-toolkit
+  ./scripts/git-init.sh
 
 项目地址: https://github.com/lizhengnacl/ops-toolkit
 EOF
@@ -748,6 +833,45 @@ export_config() {
     aliases_configured="false"
   fi
   
+  # 解析多账户配置
+  local extra_accounts=()
+  local includeif_lines
+  includeif_lines=$(git config --global --get-regexp "includeIf\." 2>/dev/null || true)
+  
+  while IFS= read -r line; do
+    if [[ -n "${line}" ]]; then
+      local key value
+      key=$(echo "${line}" | awk '{print $1}')
+      value=$(echo "${line}" | cut -d' ' -f2-)
+      
+      if [[ "${key}" == *".path" ]]; then
+        local config_file="${value}"
+        local account_name
+        account_name=$(basename "${config_file}" | sed 's/\.gitconfig-//')
+        
+        local account_email
+        if [[ -f "${config_file}" ]]; then
+          account_email=$(git config --file "${config_file}" user.email 2>/dev/null || echo "")
+        fi
+        
+        local mode=""
+        local pattern=""
+        if [[ "${key}" == includeIf.gitdir:* ]]; then
+          mode="dir"
+          pattern=$(echo "${key}" | sed -E 's/includeIf\.gitdir:(.*)\.path/\1/')
+          pattern=${pattern%/}
+        elif [[ "${key}" == includeIf.hasconfig:remote.*.url:* ]]; then
+          mode="remote"
+          pattern=$(echo "${key}" | sed -E 's/includeIf\.hasconfig:remote\.\*\.url:(.*)\.path/\1/')
+        fi
+        
+        if [[ -n "${account_name}" ]] && [[ -n "${mode}" ]] && [[ -n "${pattern}" ]]; then
+          extra_accounts+=("${account_name},${account_email:-},${mode},${pattern}")
+        fi
+      fi
+    fi
+  done <<<"${includeif_lines}"
+  
   # 生成导出脚本
   cat >"${export_file}" <<EOF
 #!/usr/bin/env bash
@@ -762,6 +886,22 @@ export GIT_INIT_CONFIG_GITIGNORE_ENABLED="${gitignore_enabled}"
 export GIT_INIT_CONFIG_GITIGNORE_CONTENT='${gitignore_content//'/'\\''}'
 export GIT_INIT_CONFIG_ALIASES_CONFIGURED="${aliases_configured}"
 EOF
+  
+  # 添加多账户配置
+  if [[ ${#extra_accounts[@]} -gt 0 ]]; then
+    echo "" >>"${export_file}"
+    echo "# 多账户配置" >>"${export_file}"
+    local idx=0
+    for account in "${extra_accounts[@]}"; do
+      IFS=',' read -r name email mode pattern <<<"${account}"
+      echo "export GIT_INIT_CONFIG_EXTRA_ACCOUNT_${idx}_NAME=\"${name}\"" >>"${export_file}"
+      echo "export GIT_INIT_CONFIG_EXTRA_ACCOUNT_${idx}_EMAIL=\"${email}\"" >>"${export_file}"
+      echo "export GIT_INIT_CONFIG_EXTRA_ACCOUNT_${idx}_MODE=\"${mode}\"" >>"${export_file}"
+      echo "export GIT_INIT_CONFIG_EXTRA_ACCOUNT_${idx}_PATTERN=\"${pattern}\"" >>"${export_file}"
+      idx=$((idx + 1))
+    done
+    echo "export GIT_INIT_CONFIG_EXTRA_ACCOUNTS_COUNT=\"${idx}\"" >>"${export_file}"
+  fi
   
   # 设置可执行权限
   chmod +x "${export_file}"
@@ -817,6 +957,31 @@ import_config() {
     git config --global alias.last "log -1 HEAD"
     SUMMARY_ALIASES_CONFIGURED="true"
     print_success "Git 别名已配置"
+  fi
+  
+  # 导入多账户配置
+  local extra_accounts_count=${GIT_INIT_CONFIG_EXTRA_ACCOUNTS_COUNT:-0}
+  if [[ "${extra_accounts_count}" -gt 0 ]]; then
+    local idx=0
+    while [[ "${idx}" -lt "${extra_accounts_count}" ]]; do
+      local name_var="GIT_INIT_CONFIG_EXTRA_ACCOUNT_${idx}_NAME"
+      local email_var="GIT_INIT_CONFIG_EXTRA_ACCOUNT_${idx}_EMAIL"
+      local mode_var="GIT_INIT_CONFIG_EXTRA_ACCOUNT_${idx}_MODE"
+      local pattern_var="GIT_INIT_CONFIG_EXTRA_ACCOUNT_${idx}_PATTERN"
+      
+      local name="${!name_var:-}"
+      local email="${!email_var:-}"
+      local mode="${!mode_var:-}"
+      local pattern="${!pattern_var:-}"
+      
+      if [[ -n "${name}" ]] && [[ -n "${mode}" ]] && [[ -n "${pattern}" ]]; then
+        EXTRA_ACCOUNTS+=("${name},${email},${mode},${pattern}")
+        configure_single_extra_account "${name}" "${email}" "${mode}" "${pattern}"
+        SUMMARY_EXTRA_ACCOUNTS_COUNT=$((SUMMARY_EXTRA_ACCOUNTS_COUNT + 1))
+      fi
+      
+      idx=$((idx + 1))
+    done
   fi
   
   print_summary

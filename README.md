@@ -28,6 +28,34 @@ cd ops-toolkit
 
 确保 `~/.local/bin` 在你的 `PATH` 环境变量中。
 
+### Git 一键初始化（快速方式）
+
+如果只需要快速配置 Git 环境，可以直接下载并执行 git-init.sh：
+
+```bash
+# 方式 1：直接下载并执行（推荐在真实终端中运行）
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/lizhengnacl/ops-toolkit/main/scripts/git-init.sh)"
+
+# 方式 2：先下载再执行（更安全）
+curl -fsSL https://raw.githubusercontent.com/lizhengnacl/ops-toolkit/main/scripts/git-init.sh -o /tmp/git-init.sh
+chmod +x /tmp/git-init.sh
+/tmp/git-init.sh
+
+# 方式 3：克隆完整仓库
+git clone https://github.com/lizhengnacl/ops-toolkit.git
+cd ops-toolkit
+./scripts/git-init.sh
+```
+
+git-init.sh 功能特性：
+- 配置 Git 主账户
+- 生成和管理 SSH Key
+- 配置全局 .gitignore
+- 设置 Git 别名
+- 支持多账户配置（基于目录或 Remote）
+- SSH 连接验证
+- 配置导入/导出
+
 ## 使用
 
 ### 初始化开发环境
